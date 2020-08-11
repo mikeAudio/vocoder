@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="IfdFS5" name="Vocoder" projectType="audioplug" jucerVersion="5.4.7"
-              companyName="VSTurbo Inc." version="0.1.0">
+<JUCERPROJECT id="IfdFS5" name="Vocoder" projectType="audioplug" companyName="VSTurbo Inc."
+              version="0.1.0" displaySplashScreen="1" jucerFormatVersion="1">
   <MAINGROUP id="G1cXmS" name="Vocoder">
     <GROUP id="{D88FB972-39BF-ACE0-5BB8-23E0B370ED8C}" name="Source">
+      <FILE id="EWcUIl" name="Oscillator.h" compile="0" resource="0" file="Source/Oscillator.h"/>
       <FILE id="jl8dwt" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
       <FILE id="KwXB4G" name="PluginProcessor.h" compile="0" resource="0"

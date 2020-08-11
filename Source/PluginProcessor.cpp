@@ -7,6 +7,12 @@ AudioProcessorValueTreeState::ParameterLayout createParameters(){
     cutoffRange.setSkewForCentre(1000.f);
     
     return {
+        //OSC Frequency
+        std::make_unique<AudioParameterFloat>("osc_freq",
+                                              "OSC Frequency",
+                                              cutoffRange,
+                                              1000.f),
+        
         
         //Number of Bands
         std::make_unique<AudioParameterInt>("num_bands",
@@ -15,9 +21,9 @@ AudioProcessorValueTreeState::ParameterLayout createParameters(){
         
         //Low F
         std::make_unique<AudioParameterFloat>("low_freq",
-                                            "Low Frequency",
-                                            cutoffRange,
-                                              20.f),
+                                              "Low Frequency",
+                                              cutoffRange,
+                                              1000.f),
         
         
         //High F
@@ -29,7 +35,12 @@ AudioProcessorValueTreeState::ParameterLayout createParameters(){
         //Q
         std::make_unique<AudioParameterFloat>("q",
                                               "Q",
-                                              0.1f, 5.f, 1.f),                                      
+                                              0.01f, 3.f, 1.f),
+        
+        //Wide
+        std::make_unique<AudioParameterFloat>("wide",
+                                              "Freq Interval",
+                                              0.1f, 5.f, 1.f),
         
         //Out Gain
         std::make_unique<AudioParameterFloat>("out_gain",
@@ -57,16 +68,20 @@ valueTree(*this, nullptr, juce::Identifier("VSTurbo Vocoder"), createParameters(
 
 #endif
 {
+    oscFreq_  = valueTree.getRawParameterValue("osc_freq");
+    
     numBands_ = valueTree.getRawParameterValue("num_bands");
     lowFreq_  = valueTree.getRawParameterValue("low_freq");
     highFreq_ = valueTree.getRawParameterValue("high_freq");
     Q_        = valueTree.getRawParameterValue("q");
+    wide_     = valueTree.getRawParameterValue("wide");
     outGain_  = valueTree.getRawParameterValue("out_gain");
 
     valueTree.addParameterListener("num_bands", this);
     valueTree.addParameterListener("low_freq", this);
     valueTree.addParameterListener("high_freq", this);
-
+    valueTree.addParameterListener("q", this);
+    valueTree.addParameterListener("wide", this);
 }
 
 VocoderAudioProcessor::~VocoderAudioProcessor()
@@ -144,10 +159,14 @@ void VocoderAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumOutputChannels();
+    
+    oscOutput.setSize(1, samplesPerBlock);
 
     for(auto& f : filters){f.prepare(spec); f.reset();}
 
     updateFilter();
+    
+    osc_.prepare(sampleRate);
 }
 
 void VocoderAudioProcessor::releaseResources()
@@ -186,21 +205,28 @@ void VocoderAudioProcessor::updateFilter()
     float highFreq = highFreq_->load();
     float frequency = lowFreq_->load();
     float q = Q_->load();
+    float wide = wide_->load();
 
     float freqStep = highFreq / static_cast<float>(numBands);
-    float freqFactor = highFreq / (highFreq - freqStep) * 3.f; //Berechnung hier is noch falsch
-
-    auto coeffs = std::array<juce::dsp::IIR::Coefficients<float>::Ptr, numFilters> {};
+    float freqFactor = highFreq / (highFreq - freqStep) * 3.f;
     
     for(int i = 0; i < numBands; i++)
     {
         if (frequency < highFreq)
         {
-            coeffs[i] = juce::dsp::IIR::Coefficients<float>::makeBandPass(lastSampleRate, frequency, q);
+            *filters[i].state = *juce::dsp::IIR::Coefficients<float>::makeBandPass(lastSampleRate, frequency, q);
         }
-
-        frequency *= freqFactor;
+        
+        //DBG(frequency);
+        
+        frequency *= wide;
     }
+    
+    //OSC Frequency Update
+    
+    
+    
+
 }
 
 
@@ -212,8 +238,15 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+    
+    int const numSamples = buffer.getNumSamples();
+    int const sampleRate = getSampleRate();
+
+    osc_.setFrequency(oscFreq_->load());
+    osc_.processBuffer(buffer);
 
 
+/*
     auto block   = juce::dsp::AudioBlock<float>(buffer);
     auto context = juce::dsp::ProcessContextReplacing<float>(block);
 
@@ -221,9 +254,8 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
         {
            filters[i].process(context);
         }
-
-    
-
+   */
+    //buffer.makeCopyOf(oscOutput);
 }
 
 //==============================================================================

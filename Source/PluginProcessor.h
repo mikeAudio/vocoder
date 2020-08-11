@@ -2,6 +2,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "Oscillator.h"
 
 //==============================================================================
 /**
@@ -55,16 +56,21 @@ private:
 
     int lastSampleRate{};
 
-    using Filter = juce::dsp::ProcessorDuplicator<dsp::IIR::Filter<float>, dsp::IIR::Coefficients <float>>;
+    using Filter = juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>>;
     constexpr static int numFilters = 24;
     std::array<Filter, numFilters> filters;
-
     
+    juce::AudioBuffer<float> oscOutput;
 
+    Oscillator osc_;
+    
+    std::atomic<float>* oscFreq_ = nullptr;
+    
     std::atomic<float>* numBands_ = nullptr;
     std::atomic<float>* lowFreq_  = nullptr;
     std::atomic<float>* highFreq_ = nullptr;
     std::atomic<float>* Q_ = nullptr;
+    std::atomic<float>* wide_ = nullptr;
     std::atomic<float>* outGain_  = nullptr;
 
     void parameterChanged(const juce::String& parameterID, float newValue) override;

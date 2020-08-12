@@ -47,6 +47,11 @@ AudioProcessorValueTreeState::ParameterLayout createParameters(){
                                               "Freq Interval",
                                               1.1f, 5.f, 1.5f),
         
+        //switch carrier & modulator
+        std::make_unique<AudioParameterBool>("switch_car_mod",
+                                             "Switch Carr/Mod",
+                                             false),
+        
         //Out Gain
         std::make_unique<AudioParameterFloat>("out_gain",
                                               "Output Gain",
@@ -81,6 +86,7 @@ valueTree(*this, nullptr, juce::Identifier("VSTurboVocoder"), createParameters()
     Q_        = valueTree.getRawParameterValue("q");
     rmsGain_  = valueTree.getRawParameterValue("rms_gain");
     wide_     = valueTree.getRawParameterValue("wide");
+    switchCarrMod_ = valueTree.getRawParameterValue("switch_car_mod");
     outGain_  = valueTree.getRawParameterValue("out_gain");
 
     valueTree.addParameterListener("num_bands", this);
@@ -166,7 +172,7 @@ void VocoderAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumOutputChannels();
     
-    oscOutput.setSize(1, samplesPerBlock);
+    oscOutput.setSize(2, samplesPerBlock);
     modBuffer.setSize(2, samplesPerBlock);
     carBuffer.setSize(2, samplesPerBlock);
 
@@ -241,12 +247,16 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
     
-    int const numSamples  = buffer.getNumSamples();
-    int const numChannels = buffer.getNumChannels();
-    int const numBands    = numBands_->load();
-    float     outGain     = outGain_->load();
+    int   const numSamples    = buffer.getNumSamples();
+    int   const numChannels   = buffer.getNumChannels();
+    int   const numBands      = numBands_->load();
+    float const outGain       = outGain_->load();
+    float const oscFreq       = oscFreq_->load();
+    float const rmsGain       = rmsGain_->load();
+    bool  const switchCarrMod = switchCarrMod_->load();
+    
 
-    osc_.setFrequency(oscFreq_->load());
+    osc_.setFrequency(oscFreq);
     osc_.processBuffer(oscOutput);
     
     
@@ -254,7 +264,8 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
     for (int i = 0; i < numBands; i++)
     {
         modBuffer.clear();
-        modBuffer.makeCopyOf(buffer);
+        if(switchCarrMod){modBuffer.makeCopyOf(oscOutput);}
+        else{modBuffer.makeCopyOf(buffer);}
         
         auto block   = juce::dsp::AudioBlock<float>(modBuffer);
         auto modulatorContext = juce::dsp::ProcessContextReplacing<float>(block);
@@ -266,7 +277,7 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
             sum += modBuffer.getRMSLevel(channel, 0, numSamples) / numChannels;
         }
         
-        rmsValues[i] = sum * 50.f * rmsGain_->load();
+        rmsValues[i] = sum * rmsGain;
     }
     
     buffer.clear();
@@ -276,9 +287,8 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
     for (int i = 0; i < numBands; i++)
         {
             carBuffer.clear();
-            auto* oscPointer = oscOutput.getWritePointer(0);
-            carBuffer.copyFrom(0, 0, oscPointer, numSamples);
-            carBuffer.copyFrom(1, 0, oscPointer, numSamples);
+            if(switchCarrMod){carBuffer.makeCopyOf(buffer);}
+            else{carBuffer.makeCopyOf(oscOutput);}
             
             auto block   = juce::dsp::AudioBlock<float>(carBuffer);
             auto carrierContext = juce::dsp::ProcessContextReplacing<float>(block);
@@ -293,7 +303,6 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
             }
         }
 
-    buffer.applyGain(0.02f);
     buffer.applyGain(outGain);
 }
 

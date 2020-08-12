@@ -15,16 +15,16 @@ class Oscillator
     }
 
     
-    void prepare(double sr)
+    void prepare(double sampleRate)
     {
-        sampleRate = sr;
+        sampleRate_ = sampleRate;
         increment = frequency * waveTable.size() / sampleRate;
         phase = fmod(phase + increment, waveTable.size());
     }
     
     void setFrequency(float f)
     {
-        increment = f * waveTable.size() / sampleRate;
+        increment = f * waveTable.size() / sampleRate_;
         frequency = f;
     }
   
@@ -55,7 +55,7 @@ private:
     float frequency{440};
     float phase{};
     float increment{};
-    double sampleRate{};
+    double sampleRate_{};
     
     
 };

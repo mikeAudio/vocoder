@@ -75,7 +75,8 @@ private:
     std::atomic<float>* highFreq_ = nullptr;
     std::atomic<float>* Q_        = nullptr;
     std::atomic<float>* rmsGain_  = nullptr;
-    std::atomic<float>* wide_     = nullptr;
+    std::atomic<float>* wide_            = nullptr;
+    std::atomic<float>* switchCarrMod_   = nullptr;
     std::atomic<float>* outGain_  = nullptr;
 
     void parameterChanged(const juce::String& parameterID, float newValue) override;

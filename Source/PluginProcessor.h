@@ -67,8 +67,10 @@ private:
     juce::AudioBuffer<float> carBuffer;
 
     Oscillator osc_;
+
     
     std::atomic<float>* oscFreq_ = nullptr;
+    std::atomic<float>* oscWave_ = nullptr;
     
     std::atomic<float>* numBands_ = nullptr;
     std::atomic<float>* lowFreq_  = nullptr;
@@ -77,6 +79,7 @@ private:
     std::atomic<float>* rmsGain_  = nullptr;
     std::atomic<float>* wide_            = nullptr;
     std::atomic<float>* switchCarrMod_   = nullptr;
+    std::atomic<float>* bypassMod_       = nullptr;
     std::atomic<float>* outGain_  = nullptr;
 
     void parameterChanged(const juce::String& parameterID, float newValue) override;

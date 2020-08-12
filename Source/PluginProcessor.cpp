@@ -6,12 +6,20 @@ AudioProcessorValueTreeState::ParameterLayout createParameters(){
     NormalisableRange<float> cutoffRange (20.f, 20000.f, 1.f);
     cutoffRange.setSkewForCentre(3000.f);
     
+    auto const waveformChoices = juce::StringArray {"Sine", "Saw", "Square", "Triangle"};
+    
     return {
         //OSC Frequency
         std::make_unique<AudioParameterFloat>("osc_freq",
                                               "OSC Frequency",
                                               cutoffRange,
                                               100.f),
+        
+        //Osc Waveform
+        std::make_unique<AudioParameterChoice>("osc_wave",
+                                               "OSC Waveform",
+                                               waveformChoices,
+                                               1),
         
         
         //Number of Bands
@@ -52,6 +60,11 @@ AudioProcessorValueTreeState::ParameterLayout createParameters(){
                                              "Switch Carr/Mod",
                                              false),
         
+        //bypass modulator
+        std::make_unique<AudioParameterBool>("bypass_mod",
+                                             "Bypass Modulator",
+                                             false),
+        
         //Out Gain
         std::make_unique<AudioParameterFloat>("out_gain",
                                               "Output Gain",
@@ -78,16 +91,18 @@ valueTree(*this, nullptr, juce::Identifier("VSTurboVocoder"), createParameters()
 
 #endif
 {
-    oscFreq_  = valueTree.getRawParameterValue("osc_freq");
+    oscFreq_        = valueTree.getRawParameterValue("osc_freq");
+    oscWave_        = valueTree.getRawParameterValue("osc_wave");
     
-    numBands_ = valueTree.getRawParameterValue("num_bands");
-    lowFreq_  = valueTree.getRawParameterValue("low_freq");
-    highFreq_ = valueTree.getRawParameterValue("high_freq");
-    Q_        = valueTree.getRawParameterValue("q");
-    rmsGain_  = valueTree.getRawParameterValue("rms_gain");
-    wide_     = valueTree.getRawParameterValue("wide");
-    switchCarrMod_ = valueTree.getRawParameterValue("switch_car_mod");
-    outGain_  = valueTree.getRawParameterValue("out_gain");
+    numBands_       = valueTree.getRawParameterValue("num_bands");
+    lowFreq_        = valueTree.getRawParameterValue("low_freq");
+    highFreq_       = valueTree.getRawParameterValue("high_freq");
+    Q_              = valueTree.getRawParameterValue("q");
+    rmsGain_        = valueTree.getRawParameterValue("rms_gain");
+    wide_           = valueTree.getRawParameterValue("wide");
+    switchCarrMod_  = valueTree.getRawParameterValue("switch_car_mod");
+    bypassMod_      = valueTree.getRawParameterValue("bypass_mod");
+    outGain_        = valueTree.getRawParameterValue("out_gain");
 
     valueTree.addParameterListener("num_bands", this);
     valueTree.addParameterListener("low_freq", this);
@@ -166,7 +181,7 @@ void VocoderAudioProcessor::changeProgramName (int index, const String& newName)
 void VocoderAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     lastSampleRate = sampleRate;
-
+    
     dsp::ProcessSpec spec;
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = samplesPerBlock;
@@ -175,10 +190,10 @@ void VocoderAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBloc
     oscOutput.setSize(2, samplesPerBlock);
     modBuffer.setSize(2, samplesPerBlock);
     carBuffer.setSize(2, samplesPerBlock);
-
+    
     for(auto& f : carrierFilters){f.prepare(spec); f.reset();}
     for(auto& f : modulatorFilters){f.prepare(spec); f.reset();}
-
+    
     updateFilter();
     
     osc_.prepare(sampleRate);
@@ -252,10 +267,13 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
     int   const numBands      = numBands_->load();
     float const outGain       = outGain_->load();
     float const oscFreq       = oscFreq_->load();
+    int   const oscWave       = oscWave_->load();
     float const rmsGain       = rmsGain_->load();
     bool  const switchCarrMod = switchCarrMod_->load();
+    bool  const bypassMod     = bypassMod_->load();
     
 
+    osc_.setWaveform(oscWave);
     osc_.setFrequency(oscFreq);
     osc_.processBuffer(oscOutput);
     
@@ -303,6 +321,7 @@ void VocoderAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer
             }
         }
 
+    if(bypassMod){buffer.makeCopyOf(oscOutput);}
     buffer.applyGain(outGain);
 }
 
